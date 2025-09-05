@@ -10,6 +10,9 @@ on:
 
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
 
 jobs:
   ruff:
@@ -56,28 +59,42 @@ jobs:
 
   pytest:
     name: PyTest
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
+
       - name: Install deps
         run: |
           set -eux
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # 如需安装项目本体，取消下一行注释
-          # pip install -e .
-          pip install pytest pytest-cov
+          # 安装依赖（若有）
+          REQ=$(ls -1 requirements*.txt 2>/dev/null | head -n1 || true)
+          if [ -n "$REQ" ]; then pip install -r "$REQ"; fi
+          pip install -U pip pytest pytest-cov
+          # 如果是可安装的包，则装项目本体（支持 src 布局）
+          if [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f setup.py ]; then
+            pip install -e .
+          fi
+
       - name: Run tests
         env:
-          # 兼容 src 布局未安装的情况；已安装也不冲突
           PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}
         run: |
-          if [ -d tests ]; then
+          set -eux
+          if [ -d tests ] || [ -d test ]; then
+            COV="."
+            [ -d src ] && COV="src"
             pytest -q --maxfail=1 --disable-warnings \
-                   --cov=. --cov-report=term-missing
+                   --cov="$COV" --cov-report=term-missing
           else
-            echo "No tests/ directory found. Skipping."
+            echo "No tests directory found. Skipping."
           fi
