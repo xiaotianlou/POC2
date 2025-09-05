@@ -2,209 +2,22 @@ name: ci-python
 
 on:
   push:
-    branches: main
+    branches: [main]
   pull_request:
-    branches: main
+    branches: [main]
   workflow_dispatch: {}
 
-permissions:
-  contents: read
-
-# 统一在三大系统都用 bash，避免 Windows PowerShell 差异
-defaults:
-  run:
-    shell: bash
-
-# 可在这里改团队简称，显示在作业名中
-env:
-  TEAM: TAT
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  read_metadata:
-    name: Python Package / ${{ env.TEAM }} / Read Project Metadata (${{ github.event_name }})
-    runs-on: ubuntu-latest
-    outputs:
-      package-name: ${{ steps.meta.outputs.package-name }}
-      package-version: ${{ steps.meta.outputs.package-version }}
-      python-matrix: ${{ steps.meta.outputs.python-matrix }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Parse pyproject/setup.cfg and compute matrix
-        id: meta
-        run: |
-          set -eux
-          python - << 'PY'
-          import os, json
-          from pathlib import Path
-
-          # 允许的 Python 版本集合（需要就扩展）
-          CANDIDATES = ["3.8","3.9","3.10","3.11","3.12"]
-
-          pkg = "UNKNOWN"
-          version = "0.0.0"
-          requires = None
-
-          pyp = Path("pyproject.toml")
-          if pyp.exists():
-            try:
-              import tomllib  # 3.11+
-            except Exception:
-              import tomli as tomllib  # fallback
-            data = tomllib.loads(pyp.read_text())
-            project = data.get("project", {})
-            pkg = project.get("name", pkg)
-            version = project.get("version", version)
-            requires = project.get("requires-python") or requires
-
-          if requires is None:
-            import configparser
-            cfg = Path("setup.cfg")
-            if cfg.exists():
-              cp = configparser.ConfigParser()
-              cp.read(cfg)
-              if cp.has_option("metadata","name"):    pkg = cp.get("metadata","name")
-              if cp.has_option("metadata","version"): version = cp.get("metadata","version")
-              if cp.has_option("options","python_requires"):
-                requires = cp.get("options","python_requires")
-
-          if requires:
-            from packaging.specifiers import SpecifierSet
-            spec = SpecifierSet(requires)
-            matrix = [v for v in CANDIDATES if spec.contains(v)]
-          else:
-            matrix = ["3.11"]  # 默认
-
-          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write(f"package-name={pkg}\n")
-            f.write(f"package-version={version}\n")
-            f.write("python-matrix=" + json.dumps(matrix) + "\n")
-
-          print("Package:", pkg, "Version:", version, "Requires:", requires, "Matrix:", matrix)
-          PY
-
-  code_format:
-    name: Python Package / ${{ env.TEAM }} / Code Formatting Check (${{ github.event_name }})
-    runs-on: ubuntu-latest
-    needs: [read_metadata]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install Black
-        run: |
-          set -eux
-          if ls requirements*.txt 1>/dev/null 2>&1; then pip install -r requirements*.txt; fi
-          pip install black
-      - name: Run Black (check only)
-        run: |
-          black --check --diff .
-
-  static_analysis:
-    name: Python Package / ${{ env.TEAM }} / Static Code Analysis (${{ github.event_name }})
-    runs-on: ubuntu-latest
-    needs: [read_metadata]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install linters
-        run: |
-          set -eux
-          if ls requirements*.txt 1>/dev/null 2>&1; then pip install -r requirements*.txt; fi
-          pip install ruff pylint
-      - name: Ruff
-        run: ruff check . --output-format=github
-      - name: Pylint (fail only on E/F)
-        run: |
-          FILES="$(git ls-files '*.py' || true)"
-          if [ -n "$FILES" ]; then
-            echo "$FILES" | xargs -r pylint --disable=all --enable=E,F
-          else
-            echo "No Python files to lint. Skipping."
-          fi
-
-  build_pkg:
-    name: Python Package / ${{ env.TEAM }} / Build and Check Packages (${{ github.event_name }})
-    runs-on: ubuntu-latest
-    needs: [static_analysis, code_format]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Build sdist/wheel and check
-        run: |
-          set -eux
-          pip install -U pip build twine
-          python -m build
-          twine check dist/*
-      - name: Upload dist artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist
-          path: dist/*
-
-  sonar_scan:
-    name: Python Package / ${{ env.TEAM }} / Sonar Project Properties (${{ github.event_name }})
-    runs-on: ubuntu-latest
-    needs: [read_metadata]
-    if: hashFiles('sonar-project.properties') != '' && secrets.SONAR_TOKEN != null
-    steps:
-      - uses: actions/checkout@v4
-      - uses: sonarsource/sonarqube-scan-action@v2
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}   # 例：https://sonarcloud.io 或自建地址
-          SONAR_TOKEN:    ${{ secrets.SONAR_TOKEN }}
-
-  unit_tests:
-    name: Python Package / ${{ env.TEAM }} / Build Test Matrix from Package Metadata (${{ github.event_name }})
-    needs: [read_metadata, build_pkg]
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ${{ fromJSON(needs.read_metadata.outputs.python-matrix) }}
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-      - name: Install deps
-        run: |
-          set -eux
-          REQ=$(ls -1 requirements*.txt 2>/dev/null | head -n1 || true)
-          if [ -n "$REQ" ]; then pip install -r "$REQ"; fi
-          # 如项目可安装，则装上（支持 src 布局）
-          if [ -f pyproject.toml ] || [ -f setup.cfg ] || [ -f setup.py ]; then
-            pip install -e .
-          fi
-          # 选择 pytest 或 unittest 二选一；默认 pytest
-          pip install -U pytest pytest-cov
-      - name: Run unit tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}
-        run: |
-          set -eux
-          if [ -d tests ] || [ -d test ]; then
-            COV="."
-            [ -d src ] && COV="src"
-            pytest -q --maxfail=1 --disable-warnings \
-                   --cov="$COV" --cov-report=term-missing
-          else
-            echo "No tests directory found. Skipping."
-          fi
+  ci:
+    uses: xiaotianlou/gha-templates/.github/workflows/python-ci.yml@v1   # <-- 换成你的用户名/仓库与 tag
+    with:
+      team: "TAT"                                    # 会体现在作业名中
+      os: '["ubuntu-latest","macos-latest","windows-latest"]'
+      python: "auto"                                  # 自动从 pyproject/setup.cfg 推导；或传 '["3.11","3.12"]'
+      test_runner: "pytest"                           # 或 "unittest"
+      enable_build: true
+      enable_sonar: false
+    # 如果要跑 Sonar：
+    # secrets:
+    #   sonar_token: ${{ secrets.SONAR_TOKEN }}
+    #   sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
