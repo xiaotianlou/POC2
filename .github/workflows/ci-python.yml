@@ -8,3 +8,4 @@ on:
 jobs:
   ci:
     uses: xiaotianlou/gha-templates/.github/workflows/python-ci-min.yml@v2
+    
