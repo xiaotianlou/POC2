@@ -42,17 +42,16 @@ jobs:
         run: |
           set -eux
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # 如果项目需要可编辑安装（包内导入），取消下一行注释
-          # pip install -e .
           pip install pylint
-      - name: List Python files
-        id: listpy
-        run: |
-          FILES=$(git ls-files '*.py' || true)
-          echo "files=$FILES" >> $GITHUB_OUTPUT
       - name: Run pylint
-        if: steps.listpy.outputs.files != ''
-        run: pylint ${{ steps.listpy.outputs.files }}
+        run: |
+          set -e
+          FILES="$(git ls-files '*.py' || true)"
+          if [ -n "$FILES" ]; then
+            echo "$FILES" | xargs -r pylint
+          else
+            echo "No Python files to lint. Skipping."
+          fi
 
   pytest:
     name: PyTest
