@@ -2,22 +2,21 @@ name: ci-python
 
 on:
   push:
-    branches: ['**']           # 任意分支 push 都跑，PR 分支也能自测
+    branches: main           
     paths:
+      - 'src/**'
       - '**/*.py'
-      - 'pyproject.toml'
       - 'requirements*.txt'
-      - 'setup.cfg'
       - '.github/workflows/**'
   pull_request:
-    branches: ['**']           # 任意目标分支的 PR 都跑
+    branches: main          
     paths:
       - '**/*.py'
       - 'pyproject.toml'
       - 'requirements*.txt'
       - 'setup.cfg'
       - '.github/workflows/**'
-  workflow_dispatch: {}         # 手动触发（调试很方便）
+  workflow_dispatch: {}        
 
 permissions:
   contents: read
