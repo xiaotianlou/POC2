@@ -8,7 +8,7 @@ on:
 jobs:
   black:
     # 用刚才模板库与 tag
-    uses: xiaotianlou/gha-templates/.github/workflows/python-black.yml@v0-black
+    uses: xiaotianlou/gha-templates/.github/workflows/python-black.yml@v1
     with:
       team: "TAT"
       targets: "src tests"      # 或者 "."
