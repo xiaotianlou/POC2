@@ -1,4 +1,4 @@
-name: ci-python (minimal)
+name: Python Package / TAT / Code Formatting (Black)
 
 on:
   push: { branches: [main] }
@@ -6,6 +6,12 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  ci:
-    uses: xiaotianlou/gha-templates/.github/workflows/python-ci.yml@v2
-    
+  black:
+    # 用刚才模板库与 tag
+    uses: <你的GitHub用户名>/gha-templates/.github/workflows/python-black.yml@v0-black
+    with:
+      team: "TAT"
+      targets: "src tests"      # 或者 "."
+      python: "3.11"
+    # 如果你想“只提示不阻塞”，可以在调用处这么写：
+    # continue-on-error: true
