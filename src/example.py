@@ -29,7 +29,7 @@ def fibonacci(length: int) -> list[int]:
     for _ in range(length):
         seq.append(previous)
         previous, current = current, previous + current
-    return seq
+    return seq #A
 
 
 @dataclass(frozen=True, slots=True)
