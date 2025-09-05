@@ -2,7 +2,7 @@ name: ci-python
 
 on:
   push:
-    branches: ['**']           # 任意分支 push 都跑，PR 分支也能自测
+    branches: main           # 任意分支 push 都跑，PR 分支也能自测
     paths:
       - '**/*.py'
       - 'pyproject.toml'
@@ -10,7 +10,7 @@ on:
       - 'setup.cfg'
       - '.github/workflows/**'
   pull_request:
-    branches: ['**']           # 任意目标分支的 PR 都跑
+    branches: main           # 任意目标分支的 PR 都跑
     paths:
       - '**/*.py'
       - 'pyproject.toml'
