@@ -1,0 +1,91 @@
+name: ci-python
+
+on:
+  push:
+    branches: ['**']           # 任意分支 push 都跑，PR 分支也能自测
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'setup.cfg'
+      - '.github/workflows/**'
+  pull_request:
+    branches: ['**']           # 任意目标分支的 PR 都跑
+    paths:
+      - '**/*.py'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+      - 'setup.cfg'
+      - '.github/workflows/**'
+  workflow_dispatch: {}         # 手动触发（调试很方便）
+
+permissions:
+  contents: read
+
+jobs:
+  ruff:
+    name: Ruff (lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install deps
+        run: |
+          set -eux
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install ruff
+      - name: Run ruff
+        run: ruff check . --output-format=github
+
+  pylint:
+    name: Pylint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install deps
+        run: |
+          set -eux
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # 如果项目需要可编辑安装（包内导入），取消下一行注释
+          # pip install -e .
+          pip install pylint
+      - name: List Python files
+        id: listpy
+        run: |
+          FILES=$(git ls-files '*.py' || true)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+      - name: Run pylint
+        if: steps.listpy.outputs.files != ''
+        run: pylint ${{ steps.listpy.outputs.files }}
+
+  pytest:
+    name: PyTest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install deps
+        run: |
+          set -eux
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # 如需安装项目本体，取消下一行注释
+          # pip install -e .
+          pip install pytest pytest-cov
+      - name: Run tests
+        run: |
+          if [ -d tests ]; then
+            pytest -q --maxfail=1 --disable-warnings \
+                   --cov=. --cov-report=term-missing
+          else
+            echo "No tests/ directory found. Skipping."
+          fi
