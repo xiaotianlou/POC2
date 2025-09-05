@@ -1,24 +1,10 @@
-name: ci-python
+name: ci-python (minimal)
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
   workflow_dispatch: {}
 
 jobs:
   ci:
-    uses: xiaotianlou/gha-templates/.github/workflows/python-ci.yml@v1   # <-- 换成你的用户名/仓库与 tag
-    with:
-      team: "TAT"                                    # 会体现在作业名中
-      os: '["ubuntu-latest","macos-latest","windows-latest"]'
-      python: "auto"                                  # 自动从 pyproject/setup.cfg 推导；或传 '["3.11","3.12"]'
-      test_runner: "pytest"                           # 或 "unittest"
-      enable_build: true
-      enable_sonar: false
-    # 如果要跑 Sonar：
-    # secrets:
-    #   sonar_token: ${{ secrets.SONAR_TOKEN }}
-    #   sonar_host_url: ${{ secrets.SONAR_HOST_URL }}
-    
+    uses: xiaotianlou/gha-templates/.github/workflows/python-ci-min.yml@v2
