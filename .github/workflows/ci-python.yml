@@ -97,3 +97,21 @@ jobs:
           else
             echo "No tests directory found. Skipping."
           fi
+  black:
+    name: Black (format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Black
+        run: |
+          set -eux
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install black
+      - name: Check formatting with Black
+        run: |
+          # 如果用 src 布局，指定目录更快：black --check --diff src tests
+          black --check --diff .
