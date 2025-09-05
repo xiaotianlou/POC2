@@ -70,6 +70,9 @@ jobs:
           # pip install -e .
           pip install pytest pytest-cov
       - name: Run tests
+        env:
+          # 兼容 src 布局未安装的情况；已安装也不冲突
+          PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}
         run: |
           if [ -d tests ]; then
             pytest -q --maxfail=1 --disable-warnings \
